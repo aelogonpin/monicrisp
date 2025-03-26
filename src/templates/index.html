@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Tiempo de Actividad</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <!-- Añade Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #1e1e2f;
+            color: #ffffff;
+        }
+        .card {
+            background-color: #27293d;
+            border: none;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #1e1e2f;
+            border-bottom: 1px solid #2b3553;
+            color: #e7e7e7;
+        }
+        .table {
+            color: #e7e7e7;
+        }
+        .status-up {
+            color: #28a745;
+        }
+        .status-down {
+            color: #dc3545;
+        }
+        .status-unknown {
+            color: #6c757d;
+        }
+        .battery {
+            display: flex;
+            gap: 2px;
+        }
+        .battery-bar {
+            width: 10px;
+            height: 20px;
+            border-radius: 2px;
+        }
+        .battery-bar.up {
+            background-color: #28a745;
+        }
+        .battery-bar.down {
+            background-color: #dc3545;
+        }
+        .battery-bar.unknown {
+            background-color: #6c757d;
+        }
+        /* Estilos para el modal */
+        .modal-content {
+            background-color: #27293d;
+            color: #e7e7e7;
+        }
+        .modal-header {
+            border-bottom: 1px solid #2b3553;
+        }
+        .modal-footer {
+            border-top: 1px solid #2b3553;
+        }
+        .detail-card {
+            margin-bottom: 15px;
+            background-color: #1e1e2f;
+            border: 1px solid #2b3553;
+            border-radius: 5px;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">Monitor de Tiempo de Actividad</h1>
+        
+        <!-- Formulario para añadir URLs -->
+        <div class="card mb-4">
+            <div class="card-header">Añadir URL para monitorizar</div>
+            <div class="card-body">
+                <form id="add-url-form">
+                    <div class="input-group mb-3">
+                        <input type="url" id="url-input" class="form-control" placeholder="https://ejemplo.com" required>
+                        <select id="interval-input" class="form-select" style="max-width: 200px;">
+                            <option value="5">Cada 5 segundos</option>
+                            <option value="10">Cada 10 segundos</option>
+                            <option value="30" selected>Cada 30 segundos</option>
+                            <option value="60">Cada minuto</option>
+                            <option value="300">Cada 5 minutos</option>
+                            <option value="600">Cada 10 minutos</option>
+                        </select>
+                        <button type="submit" id="url-submit-btn" class="btn btn-primary">Añadir</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Añade este nuevo card después del formulario para añadir URLs -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Zonas de Monitoreo</span>
+                <button id="create-zone-btn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Crear Nueva Zona
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="zones-container">
+                    <!-- Aquí se mostrarán las zonas existentes -->
+                    <p id="no-zones-message" class="text-muted">No hay zonas creadas. Crea una zona para agrupar URLs monitorizadas.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de URLs monitorizadas -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>URLs Monitorizadas</span>
+                <button id="refresh-btn" class="btn btn-sm btn-primary">
+                    <i class="fas fa-sync"></i> Actualizar
+                </button>
+            </div>
+            <div class="card-body">
+                <table class="table table-dark table-striped">
+                    <thead>
+                        <tr>
+                            <th>Estado</th>
+                            <th>URL</th>
+                            <th>Histórico</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="urls-table-body">
+                        <!-- Aquí se llenarán las filas dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para detalles -->
+    <div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailsModalLabel">Detalles de Monitoreo</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-12 mb-4">
+                            <h6>URL: <span id="detail-url"></span></h6>
+                            <p>Intervalo de monitoreo: <span id="detail-interval"></span> segundos</p>
+                            <p>Disponibilidad: <span id="detail-uptime"></span>%</p>
+                        </div>
+                        
+                        <div class="col-md-12 mb-4">
+                            <h6>Gráfico de estado</h6>
+                            <canvas id="statusChart" height="100"></canvas>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <h6>Últimas verificaciones</h6>
+                            <div id="detailed-history"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Añade este modal al final del body, antes de los scripts -->
+    <div class="modal fade" id="zoneModal" tabindex="-1" aria-labelledby="zoneModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="zoneModalLabel">Crear Nueva Zona</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="zone-form">
+                        <div class="mb-3">
+                            <label for="zone-name" class="form-label">Nombre de la zona</label>
+                            <input type="text" class="form-control" id="zone-name" placeholder="Ej: Servicios SelfHosted" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="zone-slug" class="form-label">Ruta de acceso</label>
+                            <div class="input-group">
+                                <span class="input-group-text">http://servidor:5000/status/</span>
+                                <input type="text" class="form-control" id="zone-slug" placeholder="selfhosted" required>
+                            </div>
+                            <div class="form-text text-muted">Solo letras, números y guiones (sin espacios)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="zone-description" class="form-label">Descripción (opcional)</label>
+                            <textarea class="form-control" id="zone-description" rows="2" placeholder="Descripción breve de esta zona"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Seleccionar URLs a incluir</label>
+                            <div id="zone-urls-container" class="border p-3 rounded" style="max-height: 300px; overflow-y: auto;">
+                                <div class="text-center text-muted py-4">Cargando URLs disponibles...</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="zone-public" checked>
+                                <label class="form-check-label" for="zone-public">Página pública (accesible sin autenticación)</label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="save-zone-btn">Guardar Zona</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variable para almacenar la instancia del gráfico
+        let statusChart = null;
+        let socket = null;
+        let isUpdating = false;
+
+        // Función helper para obtener la clase del badge según el porcentaje
+        function getStatusBadgeClass(percentage) {
+            if (percentage >= 95) return 'bg-success';
+            if (percentage >= 80) return 'bg-warning';
+            if (percentage >= 50) return 'bg-info';
+            return 'bg-danger';
+        }
+
+        // Añade esta función helper para fetch con reintentos
+        function fetchWithRetry(url, options, maxRetries = 3) {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+                
+                function attempt() {
+                    attempts++;
+                    fetch(url, options)
+                        .then(resolve)
+                        .catch(error => {
+                            if (attempts >= maxRetries) {
+                                reject(error);
+                                return;
+                            }
+                            
+                            // Esperar antes de reintentar (backoff exponencial)
+                            const delay = Math.min(1000 * Math.pow(2, attempts - 1), 5000);
+                            console.log(`Reintentando en ${delay}ms (intento ${attempts})`);
+                            
+                            setTimeout(attempt, delay);
+                        });
+                }
+                
+                attempt();
+            });
+        }
+
+        // Función para mostrar los detalles
+        function showDetails(url) {
+            fetch(`/api/url-details?url=${encodeURIComponent(url)}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('detail-url').textContent = data.url;
+                document.getElementById('detail-interval').textContent = data.interval;
+                document.getElementById('detail-uptime').textContent = data.uptime_percentage;
+                
+                // Crear historial detallado
+                const historyContainer = document.getElementById('detailed-history');
+                historyContainer.innerHTML = '';
+                
+                if (data.history && data.history.length > 0) {
+                    // Preparar datos para el gráfico
+                    const labels = [];
+                    const statusData = [];
+                    const responseTimeData = [];
+                    
+                    data.history.slice(0, 30).reverse().forEach((check, index) => {
+                        // Para el gráfico
+                        labels.push(new Date(check.checked_at).toLocaleTimeString());
+                        statusData.push(check.is_up ? 1 : 0);
+                        responseTimeData.push(check.response_time);
+                        
+                        // Solo mostrar los primeros 20 elementos en la lista detallada
+                        if (index < 20) {
+                            const checkDate = new Date(check.checked_at);
+                            const formattedDate = checkDate.toLocaleString();
+                            const statusClass = check.is_up ? 'text-success' : 'text-danger';
+                            const statusText = check.is_up ? 'Activo' : 'Caído';
+                            
+                            const detailCard = document.createElement('div');
+                            detailCard.className = 'detail-card';
+                            detailCard.innerHTML = `
+                                <div class="d-flex justify-content-between">
+                                    <span class="${statusClass} fw-bold">${statusText} (${check.status_code})</span>
+                                    <span class="text-muted">${formattedDate}</span>
+                                </div>
+                                <div>Tiempo de respuesta: ${check.response_time} ms</div>
+                            `;
+                            historyContainer.appendChild(detailCard);
+                        }
+                    });
+                    
+                    // Crear o actualizar el gráfico
+                    const ctx = document.getElementById('statusChart').getContext('2d');
+                    
+                    if (statusChart) {
+                        statusChart.destroy();
+                    }
+                    
+                    statusChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Estado (1=Activo, 0=Caído)',
+                                    data: statusData,
+                                    backgroundColor: 'rgba(40, 167, 69, 0.2)',
+                                    borderColor: 'rgba(40, 167, 69, 1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: 'Tiempo de respuesta (ms)',
+                                    data: responseTimeData,
+                                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    yAxisID: 'y1'
+                                }
+                            ]
+                        },
+                        options: {
+                            scales: {
+                                y: {
+                                    type: 'linear',
+                                    display: true,
+                                    position: 'left',
+                                    min: -0.1,
+                                    max: 1.1,
+                                    ticks: {
+                                        stepSize: 1,
+                                        color: 'rgba(255, 255, 255, 0.7)'
+                                    },
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.1)'
+                                    }
+                                },
+                                y1: {
+                                    type: 'linear',
+                                    display: true,
+                                    position: 'right',
+                                    ticks: {
+                                        color: 'rgba(255, 255, 255, 0.7)'
+                                    },
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.1)'
+                                    }
+                                },
+                                x: {
+                                    ticks: {
+                                        color: 'rgba(255, 255, 255, 0.7)'
+                                    },
+                                    grid: {
+                                        color: 'rgba(255, 255, 255, 0.1)'
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    labels: {
+                                        color: 'rgba(255, 255, 255, 0.7)'
+                                    }
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    historyContainer.innerHTML = '<p>No hay datos históricos disponibles para esta URL.</p>';
+                }
+                
+                // Mostrar el modal
+                const detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+                detailsModal.show();
+            })
+            .catch(error => {
+                console.error('Error al cargar detalles:', error);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Documento cargado, inicializando Socket.IO...');
+            
+            // Inicializar Socket.IO al principio
+            socket = io({
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                timeout: 20000
+            });
+            
+            // Configurar eventos Socket.IO
+            socket.on('connect', function() {
+                console.log('Conectado al servidor Socket.IO');
+                reconnectAttempts = 0;
+                
+                // Si hay datos pendientes de cargar, intentar cargarlos ahora
+                if (document.getElementById('urls-table-body').innerHTML.includes('Error de conexión')) {
+                    setTimeout(loadUrls, 1000);
+                }
+            });
+
+            socket.on('disconnect', function() {
+                console.log('Desconectado del servidor Socket.IO, intentando reconectar...');
+            });
+
+            socket.on('connect_error', function(error) {
+                reconnectAttempts++;
+                console.error(`Error de conexión Socket.IO (intento ${reconnectAttempts}):`, error);
+                
+                // Si hay demasiados intentos fallidos, mostrar mensaje al usuario
+                if (reconnectAttempts >= 5) {
+                    const tableBody = document.getElementById('urls-table-body');
+                    if (!tableBody.innerHTML.includes('Error de conexión')) {
+                        tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">
+                            Error de conexión con el servidor. Intentando reconectar...
+                        </td></tr>`;
+                    }
+                }
+            });
+
+            // Manejar el formulario para añadir URLs
+            document.getElementById('add-url-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const urlInput = document.getElementById('url-input');
+                const intervalInput = document.getElementById('interval-input');
+                const submitBtn = document.getElementById('url-submit-btn');
+                
+                const url = urlInput.value.trim();
+                const interval = parseInt(intervalInput.value.trim(), 10);
+                
+                if (!url || !interval || interval < 5) {
+                    alert('Por favor, introduce una URL válida y un intervalo de al menos 5 segundos');
+                    return;
+                }
+                
+                // Deshabilitar botón y mostrar indicador
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = 'Añadiendo...';
+                
+                // Añadir URL
+                fetch('/api/urls', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        url: url, 
+                        interval: interval 
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Respuesta de añadir URL:', data);
+                    if (data.success) {
+                        urlInput.value = '';
+                        
+                        // Esperar un momento para que el servidor inicie el monitoreo
+                        // y luego cargar los datos
+                        setTimeout(() => {
+                            loadUrls();
+                            
+                            // Un segundo proceso para asegurar que los datos se cargan
+                            // incluso si la primera carga no muestra la nueva URL
+                            setTimeout(() => {
+                                loadUrls();
+                            }, 2000);
+                        }, 1000);
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al añadir URL:', error);
+                    alert(`Error al añadir URL: ${error.message}`);
+                })
+                .finally(() => {
+                    // Restaurar botón
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Añadir';
+                });
+            });
+
+            // Función para cargar las URLs monitorizadas
+            function loadUrls() {
+                if (isUpdating) return;
+                isUpdating = true;
+                
+                console.log('Cargando URLs...');
+                
+                fetch('/api/urls')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Datos recibidos:', data);
+                    const tableBody = document.getElementById('urls-table-body');
+                    tableBody.innerHTML = '';
+
+                    if (data.urls && data.urls.length > 0) {
+                        data.urls.forEach(item => {
+                            console.log('Procesando URL:', item.url);
+                            const row = document.createElement('tr');
+                            
+                            const historyBars = item.history && item.history.length > 0 
+                                ? item.history.map(status => {
+                                    let className = 'unknown';
+                                    if (status === 'up') className = 'up';
+                                    if (status === 'down') className = 'down';
+                                    return `<div class="battery-bar ${className}"></div>`;
+                                  }).join('')
+                                : '<div class="battery-bar unknown"></div>';
+
+                            row.innerHTML = `
+                                <td>
+                                    <span class="badge ${getStatusBadgeClass(item.uptime_percentage || 0)}">
+                                        ${item.uptime_percentage || 0}%
+                                    </span>
+                                </td>
+                                <td>
+                                    ${item.url}
+                                    <div class="mt-1">
+                                        <span class="badge bg-info">Intervalo: ${item.interval}s</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="battery">
+                                        ${historyBars}
+                                    </div>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-info show-details" data-url="${item.url}">Detalles</button>
+                                    <button class="btn btn-sm btn-warning edit-interval" data-url="${item.url}" data-interval="${item.interval}">Editar</button>
+                                    <button class="btn btn-sm btn-danger delete-url" data-url="${item.url}">Eliminar</button>
+                                </td>
+                            `;
+                            tableBody.appendChild(row);
+                        });
+                    } else {
+                        tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No hay URLs monitorizadas.</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar URLs:', error);
+                    const tableBody = document.getElementById('urls-table-body');
+                    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Error al cargar datos: ${error.message}</td></tr>`;
+                })
+                .finally(() => {
+                    isUpdating = false;
+                });
+            }
+
+            // Función para eliminar URL
+            function deleteUrl(url) {
+                // Evitar solicitudes múltiples
+                if (window.pendingDelete === url) {
+                    console.log(`Ya hay una solicitud pendiente para eliminar ${url}`);
+                    return;
+                }
+                
+                window.pendingDelete = url;
+                
+                fetchWithRetry(`/api/urls?url=${encodeURIComponent(url)}`, {
+                    method: 'DELETE',
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        console.log('URL eliminada:', url);
+                        loadUrls();
+                    } else {
+                        alert('Error al eliminar URL: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al eliminar URL:', error);
+                    alert(`Error al eliminar URL: ${error.message}`);
+                })
+                .finally(() => {
+                    // Limpiar el bloqueo después de 1 segundo para evitar problemas
+                    setTimeout(() => {
+                        window.pendingDelete = null;
+                    }, 1000);
+                });
+            }
+
+            // Sistema avanzado para actualizaciones en tiempo real
+            let lastUpdateIds = {};  // Para rastrear los IDs de actualizaciones ya procesados
+
+            socket.on('status_update', function(data) {
+                const url = data.url;
+                const checkId = data.check_id || Date.now();  // Usar el ID único si está disponible
+                const timestamp = new Date().toLocaleTimeString();
+                
+                // Verificar si ya hemos procesado una actualización con este ID
+                if (lastUpdateIds[url] === checkId) {
+                    console.log(`Ignorando actualización duplicada para ${url} (checkId: ${checkId})`);
+                    return;
+                }
+                
+                // Registrar este ID como procesado
+                lastUpdateIds[url] = checkId;
+                
+                console.log(`Actualización recibida para ${url} a las ${timestamp} (checkId: ${checkId})`);
+                
+                // Usar debouncing para evitar múltiples actualizaciones en poco tiempo
+                if (window.updateTimer) {
+                    clearTimeout(window.updateTimer);
+                }
+                
+                window.updateTimer = setTimeout(function() {
+                    console.log('Realizando actualización de UI');
+                    loadUrls();
+                    window.updateTimer = null;
+                }, 300);
+            });
+
+            // Añade esta función para reintentar cargar URLs
+            function loadUrlsWithRetry(maxRetries = 3, retryCount = 0) {
+                console.log(`Intentando cargar URLs (intento ${retryCount + 1}/${maxRetries})`);
+                
+                fetch('/api/urls')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Procesar datos normalmente...
+                    console.log('URLs cargadas con éxito');
+                })
+                .catch(error => {
+                    console.error('Error al cargar URLs:', error);
+                    
+                    if (retryCount < maxRetries - 1) {
+                        // Reintentar con backoff exponencial
+                        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+                        console.log(`Reintentando en ${delay}ms...`);
+                        
+                        setTimeout(() => {
+                            loadUrlsWithRetry(maxRetries, retryCount + 1);
+                        }, delay);
+                    } else {
+                        console.error('Máximo de reintentos alcanzado');
+                        // Mostrar mensaje de error
+                    }
+                });
+            }
+
+            // Añade esta función para editar el intervalo
+            function showIntervalEditModal(url, currentInterval) {
+                // Crear un modal sencillo para editar el intervalo
+                const newInterval = prompt(`Editar intervalo para ${url}`, currentInterval);
+                
+                if (newInterval !== null && !isNaN(newInterval) && parseInt(newInterval) >= 5) {
+                    // Enviar la solicitud para actualizar el intervalo
+                    fetchWithRetry('/api/urls', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            url: url, 
+                            interval: parseInt(newInterval) 
+                        }),
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            console.log(`Intervalo actualizado para ${url}: ${newInterval}s`);
+                            loadUrls();
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    });
+                }
+            }
+
+            // Event listeners para botones - registrarlos solo una vez a nivel de documento
+            document.addEventListener('click', function(e) {
+                if (e.target && e.target.classList.contains('show-details')) {
+                    const url = e.target.getAttribute('data-url');
+                    showDetails(url);
+                }
+                
+                if (e.target && e.target.classList.contains('delete-url')) {
+                    const url = e.target.getAttribute('data-url');
+                    deleteUrl(url);
+                }
+
+                if (e.target && e.target.classList.contains('edit-interval')) {
+                    const url = e.target.getAttribute('data-url');
+                    const interval = e.target.getAttribute('data-interval');
+                    showIntervalEditModal(url, interval);
+                }
+            });
+
+            // Añade este código para el botón de actualización
+            document.getElementById('refresh-btn').addEventListener('click', function() {
+                console.log('Actualizando manualmente...');
+                loadUrls();
+            });
+
+            // Cargar datos iniciales
+            loadUrls();
+
+            // Añade estas funciones al script existente dentro del DOMContentLoaded
+            document.getElementById('create-zone-btn').addEventListener('click', function() {
+                // Cargar las URLs disponibles
+                loadAvailableUrls();
+                
+                // Mostrar el modal
+                const zoneModal = new bootstrap.Modal(document.getElementById('zoneModal'));
+                zoneModal.show();
+            });
+
+            // Función para cargar URLs disponibles en el modal
+            function loadAvailableUrls() {
+                const container = document.getElementById('zone-urls-container');
+                container.innerHTML = '<div class="text-center text-muted py-4">Cargando URLs disponibles...</div>';
+                
+                fetch('/api/urls')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.urls && data.urls.length > 0) {
+                        container.innerHTML = '';
+                        
+                        data.urls.forEach(item => {
+                            const urlCheck = document.createElement('div');
+                            urlCheck.className = 'form-check mb-2';
+                            urlCheck.innerHTML = `
+                                <input class="form-check-input zone-url-checkbox" type="checkbox" value="${item.url}" id="url-${btoa(item.url).replace(/=/g, '')}">
+                                <label class="form-check-label d-flex justify-content-between" for="url-${btoa(item.url).replace(/=/g, '')}">
+                                    <span>${item.url}</span>
+                                    <span class="badge ${getStatusBadgeClass(item.uptime_percentage || 0)}">${item.uptime_percentage || 0}%</span>
+                                </label>
+                            `;
+                            container.appendChild(urlCheck);
+                        });
+                    } else {
+                        container.innerHTML = '<div class="alert alert-warning">No hay URLs monitorizadas disponibles. Añade algunas primero.</div>';
+                    }
+                })
+                .catch(error => {
+                    container.innerHTML = `<div class="alert alert-danger">Error al cargar URLs: ${error.message}</div>`;
+                });
+            }
+
+            // Guardar la zona configurada
+            document.getElementById('save-zone-btn').addEventListener('click', function() {
+                const zoneName = document.getElementById('zone-name').value.trim();
+                const zoneSlug = document.getElementById('zone-slug').value.trim();
+                const zoneDescription = document.getElementById('zone-description').value.trim();
+                const zonePublic = document.getElementById('zone-public').checked;
+                
+                // Validar campos obligatorios
+                if (!zoneName || !zoneSlug) {
+                    alert('Nombre y ruta son campos obligatorios');
+                    return;
+                }
+                
+                // Validar formato de slug (solo letras, números y guiones)
+                if (!/^[a-z0-9-]+$/.test(zoneSlug)) {
+                    alert('La ruta solo puede contener letras minúsculas, números y guiones');
+                    return;
+                }
+                
+                // Obtener URLs seleccionadas
+                const selectedUrls = [];
+                document.querySelectorAll('.zone-url-checkbox:checked').forEach(checkbox => {
+                    selectedUrls.push(checkbox.value);
+                });
+                
+                if (selectedUrls.length === 0) {
+                    alert('Debes seleccionar al menos una URL para incluir en la zona');
+                    return;
+                }
+                
+                // Crear objeto de datos para enviar
+                const zoneData = {
+                    name: zoneName,
+                    slug: zoneSlug,
+                    description: zoneDescription,
+                    urls: selectedUrls,
+                    is_public: zonePublic
+                };
+                
+                // Enviar datos al servidor
+                fetch('/api/zones', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(zoneData)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Error HTTP: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // Cerrar modal
+                        bootstrap.Modal.getInstance(document.getElementById('zoneModal')).hide();
+                        
+                        // Limpiar formulario
+                        document.getElementById('zone-form').reset();
+                        
+                        // Mostrar mensaje de éxito
+                        alert(`Zona "${zoneName}" creada correctamente.\n\nPuedes acceder a través de: http://servidor:5000/status/${zoneSlug}`);
+                        
+                        // Actualizar lista de zonas
+                        loadZones();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al crear zona:', error);
+                    alert(`Error al crear zona: ${error.message}`);
+                });
+            });
+
+            // Función para cargar zonas existentes
+            function loadZones() {
+                const container = document.getElementById('zones-container');
+                
+                // Verificar si los elementos existen antes de usarlos
+                if (!container) {
+                    console.error('Elemento zones-container no encontrado');
+                    return;
+                }
+                
+                const noZonesMessage = document.getElementById('no-zones-message');
+                
+                fetch('/api/zones')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.zones && data.zones.length > 0) {
+                        if (noZonesMessage) {
+                            noZonesMessage.style.display = 'none';
+                        }
+                        container.innerHTML = '';
+                        
+                        // Crear una fila para cada 3 zonas
+                        let row = null;
+                        
+                        data.zones.forEach((zone, index) => {
+                            if (index % 3 === 0) {
+                                row = document.createElement('div');
+                                row.className = 'row mb-3';
+                                container.appendChild(row);
+                            }
+                            
+                            const zoneCard = document.createElement('div');
+                            zoneCard.className = 'col-md-4';
+                            zoneCard.innerHTML = `
+                                <div class="card h-100">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${zone.name}</h5>
+                                        <p class="card-text small">${zone.description || 'Sin descripción'}</p>
+                                        <p class="text-muted small">URLs: ${zone.urls.length}</p>
+                                    </div>
+                                    <div class="card-footer d-flex justify-content-between">
+                                        <a href="/status/${zone.slug}" class="btn btn-sm btn-primary" target="_blank">Ver</a>
+                                        <button class="btn btn-sm btn-danger delete-zone-btn" data-zone-id="${zone.id}">Eliminar</button>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            row.appendChild(zoneCard);
+                        });
+                    } else {
+                        if (noZonesMessage) {
+                            noZonesMessage.style.display = 'block';
+                        }
+                        container.innerHTML = '';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error al cargar zonas:', error);
+                    container.innerHTML = `<div class="alert alert-danger">Error al cargar zonas: ${error.message}</div>`;
+                });
+            }
+
+            // Eliminar una zona
+            document.addEventListener('click', function(e) {
+                if (e.target && e.target.classList.contains('delete-zone-btn')) {
+                    const zoneId = e.target.getAttribute('data-zone-id');
+                    
+                    if (confirm('¿Estás seguro de que deseas eliminar esta zona?')) {
+                        fetch(`/api/zones/${zoneId}`, {
+                            method: 'DELETE'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                loadZones();
+                            } else {
+                                alert('Error: ' + data.message);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error al eliminar zona:', error);
+                            alert(`Error al eliminar zona: ${error.message}`);
+                        });
+                    }
+                }
+            });
+
+            // Cargar zonas existentes al iniciar
+            loadZones();
+        });
+    </script>
+</body>
+</html>

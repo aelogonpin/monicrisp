@@ -1,0 +1,56 @@
+# Ignorar una carpeta específica
+nombre_carpeta/
+
+# Ignorar el entorno virtual
+myenv/
+venv/
+env/
+.venv/
+
+# Ignorar archivos de base de datos SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Ignorar archivos de configuración con información sensible
+.env
+.flaskenv
+instance/
+
+# Ignorar archivos generados por Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ignorar logs y archivos temporales
+*.log
+logs/
+tmp/
+temp/
+.DS_Store
+
+# Ignorar archivos de cache de pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+
+#Ignorar archivos comprimidos
+moni*tar.gz

@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estado de Servicios - {{zone.name}}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #1e1e2f;
+            color: #ffffff;
+        }
+        .card {
+            background-color: #27293d;
+            border: none;
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #1e1e2f;
+            border-bottom: 1px solid #2b3553;
+            color: #e7e7e7;
+        }
+        .table {
+            color: #e7e7e7;
+        }
+        .battery {
+            display: flex;
+            gap: 2px;
+        }
+        .battery-bar {
+            width: 10px;
+            height: 20px;
+            border-radius: 2px;
+        }
+        .battery-bar.up {
+            background-color: #28a745;
+        }
+        .battery-bar.down {
+            background-color: #dc3545;
+        }
+        .battery-bar.unknown {
+            background-color: #6c757d;
+        }
+        .status-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .status-indicator.operational {
+            background-color: #28a745;
+        }
+        .status-indicator.partial {
+            background-color: #ffc107;
+        }
+        .status-indicator.down {
+            background-color: #dc3545;
+        }
+        .status-page-header {
+            text-align: center;
+            padding: 30px 0;
+        }
+        .last-updated {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <div class="status-page-header">
+            <h1>{{zone.name}}</h1>
+            <p>{{zone.description}}</p>
+            <div id="overall-status" class="mb-3">
+                <span class="status-indicator {{overall_status_class}}"></span>
+                <span id="status-text">
+                    {% if overall_status == 'operational' %}
+                        Todos los sistemas operativos
+                    {% elif overall_status == 'partial' %}
+                        Algunos sistemas presentan problemas
+                    {% else %}
+                        Se han detectado interrupciones importantes
+                    {% endif %}
+                </span>
+            </div>
+            <div class="last-updated">
+                Última actualización: <span id="last-updated-time">{{last_updated}}</span>
+            </div>
+        </div>
+        
+        <!-- Tabla de servicios monitorizados -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Servicios Monitorizados</span>
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <select id="refresh-interval" class="form-select form-select-sm">
+                            <option value="0">Actualización manual</option>
+                            <option value="10" selected>10 segundos</option>
+                            <option value="30">30 segundos</option>
+                            <option value="60">1 minuto</option>
+                            <option value="300">5 minutos</option>
+                        </select>
+                    </div>
+                    <button id="refresh-btn" class="btn btn-sm btn-primary">
+                        Actualizar
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <table class="table table-dark table-striped">
+                    <thead>
+                        <tr>
+                            <th>Estado</th>
+                            <th>Servicio</th>
+                            <th>Histórico</th>
+                            <th>Último chequeo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="services-table-body">
+                        {% if services %}
+                            {% for service in services %}
+                                <tr>
+                                    <td>
+                                        <span class="badge {% if service.is_up %}bg-success{% elif service.is_up == false %}bg-danger{% else %}bg-secondary{% endif %}">
+                                            {% if service.is_up %}Operativo{% elif service.is_up == false %}Caído{% else %}Desconocido{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="service-name">{{service.url}}</span>
+                                    </td>
+                                    <td>
+                                        <div class="battery">
+                                            {% for status in service.history %}
+                                                <div class="battery-bar {{status}}"></div>
+                                            {% else %}
+                                                <div class="battery-bar unknown"></div>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {{service.last_checked}}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center">No hay servicios configurados para esta zona.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/socket.io/client-dist/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Configurar Socket.IO
+            const socket = io();
+            let refreshTimer = null;
+            let lastUpdatedTime = new Date();
+            let autoRefreshEnabled = true;
+            
+            // Obtener el valor guardado del intervalo o usar el predeterminado
+            const savedInterval = localStorage.getItem('statusPageRefreshInterval');
+            const refreshIntervalSelect = document.getElementById('refresh-interval');
+            
+            if (savedInterval) {
+                refreshIntervalSelect.value = savedInterval;
+                if (savedInterval === "0") {
+                    autoRefreshEnabled = false;
+                }
+            }
+            
+            // Actualizar la hora de última actualización
+            function updateLastUpdatedTime() {
+                lastUpdatedTime = new Date();
+                document.getElementById('last-updated-time').textContent = lastUpdatedTime.toLocaleTimeString();
+            }
+            
+            // Función para actualizar la página
+            function refreshPage() {
+                const minimumTimeBetweenRefreshes = 5000; // 5 segundos mínimo entre actualizaciones
+                const timeSinceLastUpdate = new Date() - lastUpdatedTime;
+                
+                if (timeSinceLastUpdate < minimumTimeBetweenRefreshes) {
+                    console.log(`Actualización demasiado reciente. Esperando ${(minimumTimeBetweenRefreshes - timeSinceLastUpdate)/1000}s...`);
+                    return; // No actualizar si ha pasado poco tiempo
+                }
+                
+                console.log('Actualizando página...');
+                window.location.reload();
+            }
+            
+            // Configurar el timer de actualización automática
+            function setupAutoRefresh() {
+                // Limpiar timer existente
+                if (refreshTimer) {
+                    clearInterval(refreshTimer);
+                    refreshTimer = null;
+                }
+                
+                // Obtener el intervalo seleccionado (en segundos)
+                const interval = parseInt(refreshIntervalSelect.value, 10);
+                
+                // Si el intervalo es mayor que 0, configurar el timer
+                if (interval > 0) {
+                    autoRefreshEnabled = true;
+                    refreshTimer = setInterval(refreshPage, interval * 1000);
+                    console.log(`Actualización automática configurada cada ${interval} segundos`);
+                } else {
+                    autoRefreshEnabled = false;
+                    console.log('Actualización automática desactivada');
+                }
+                
+                // Guardar preferencia
+                localStorage.setItem('statusPageRefreshInterval', interval.toString());
+            }
+            
+            // Botón de actualización manual
+            document.getElementById('refresh-btn').addEventListener('click', function() {
+                refreshPage();
+            });
+            
+            // Cambio en el selector de intervalo
+            refreshIntervalSelect.addEventListener('change', function() {
+                setupAutoRefresh();
+            });
+            
+            // Manejar actualizaciones en tiempo real desde Socket.IO
+            socket.on('status_update', function(data) {
+                // Solo actualizar si el auto-refresh está habilitado
+                if (autoRefreshEnabled) {
+                    // Añadir un pequeño retraso para evitar múltiples actualizaciones simultáneas
+                    setTimeout(() => {
+                        const timeSinceLastUpdate = new Date() - lastUpdatedTime;
+                        // Solo actualizar si ha pasado suficiente tiempo desde la última actualización
+                        if (timeSinceLastUpdate > 5000) { // 5 segundos mínimo
+                            refreshPage();
+                        } else {
+                            console.log('Cambios detectados, pero ignorando actualización (muy reciente)');
+                        }
+                    }, 1000);
+                }
+            });
+            
+            // Inicializar la actualización automática
+            setupAutoRefresh();
+            
+            // Actualizar hora actual
+            updateLastUpdatedTime();
+            
+            // Mostrar intervalo de actualización actual
+            const intervalValue = parseInt(refreshIntervalSelect.value, 10);
+            const statusText = intervalValue > 0 
+                ? `Actualización automática cada ${intervalValue} segundos` 
+                : 'Actualización manual';
+                
+            console.log(statusText);
+        });
+    </script>
+</body>
+</html>
