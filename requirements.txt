@@ -1,26 +1,7 @@
-# Flask y extensiones relacionadas
 Flask
-Flask-SQLAlchemy
-Flask-SocketIO
-Werkzeug
-
-# Base de datos
 SQLAlchemy
-
-# Networking y monitoreo
 requests
+Flask-SocketIO
 eventlet
-gevent
-aiohttp
-
-# Utilidades
 python-dotenv
-pytz
-pydantic
-
-# Servidor WSGI para producción (opcional)
-gunicorn
-
-# Herramientas de desarrollo y pruebas (opcional)
-pytest
-flake8
+flask_cors
