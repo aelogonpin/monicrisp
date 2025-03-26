@@ -3,7 +3,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 import logging
-from storage.database import save_result, save_url, delete_url, get_all_urls, save_result_to_sqlite
+from storage.database import save_result, save_url, delete_url, get_all_urls
 from storage.database import Session, MonitoringResult
 
 # Configurar logging
@@ -142,8 +142,7 @@ class UptimeChecker:
         # Guardar resultado en la base de datos
         try:
             check_id = int(time.time() * 1000)
-            save_result(url, status_code, response_time, is_up)
-            save_result_to_sqlite(url, status_code, response_time, is_up)
+            result = save_result(url, status_code, response_time, is_up)
             
             # Emitir evento en tiempo real si socketio está configurado
             if self.socketio:

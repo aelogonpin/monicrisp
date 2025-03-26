@@ -4,12 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monitor de Tiempo de Actividad</title>
-    <!-- Añadir referencia al favicon -->
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
-    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <!-- Añade Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAA/4QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEREREREAAAEREREREQAAARERERERAAABEREREREAAAEREREREQAAARERERERAAABEREREREAAAEREREREQAAARERERERAAABEREREREAAAEREREREQAAARERERERAAABEREREREAAAEREREREQAAARERERERAAABEREREREAAAEREREREQAAARERERERAAADgAAAAAADwAA" type="image/x-icon">
     <style>
         body {
             background-color: #1e1e2f;
@@ -100,22 +98,6 @@
             </div>
         </div>
         
-        <!-- Añade este nuevo card después del formulario para añadir URLs -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>Zonas de Monitoreo</span>
-                <button id="create-zone-btn" class="btn btn-primary">
-                    <i class="fas fa-plus"></i> Crear Nueva Zona
-                </button>
-            </div>
-            <div class="card-body">
-                <div id="zones-container">
-                    <!-- Aquí se mostrarán las zonas existentes -->
-                    <p id="no-zones-message" class="text-muted">No hay zonas creadas. Crea una zona para agrupar URLs monitorizadas.</p>
-                </div>
-            </div>
-        </div>
-
         <!-- Tabla de URLs monitorizadas -->
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -171,54 +153,6 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Añade este modal al final del body, antes de los scripts -->
-    <div class="modal fade" id="zoneModal" tabindex="-1" aria-labelledby="zoneModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="zoneModalLabel">Crear Nueva Zona</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="zone-form">
-                        <div class="mb-3">
-                            <label for="zone-name" class="form-label">Nombre de la zona</label>
-                            <input type="text" class="form-control" id="zone-name" placeholder="Ej: Servicios SelfHosted" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="zone-slug" class="form-label">Ruta de acceso</label>
-                            <div class="input-group">
-                                <span class="input-group-text">http://servidor:5000/status/</span>
-                                <input type="text" class="form-control" id="zone-slug" placeholder="selfhosted" required>
-                            </div>
-                            <div class="form-text text-muted">Solo letras, números y guiones (sin espacios)</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="zone-description" class="form-label">Descripción (opcional)</label>
-                            <textarea class="form-control" id="zone-description" rows="2" placeholder="Descripción breve de esta zona"></textarea>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Seleccionar URLs a incluir</label>
-                            <div id="zone-urls-container" class="border p-3 rounded" style="max-height: 300px; overflow-y: auto;">
-                                <div class="text-center text-muted py-4">Cargando URLs disponibles...</div>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="zone-public" checked>
-                                <label class="form-check-label" for="zone-public">Página pública (accesible sin autenticación)</label>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" id="save-zone-btn">Guardar Zona</button>
                 </div>
             </div>
         </div>
@@ -741,214 +675,6 @@
 
             // Cargar datos iniciales
             loadUrls();
-
-            // Añade estas funciones al script existente dentro del DOMContentLoaded
-            document.getElementById('create-zone-btn').addEventListener('click', function() {
-                // Cargar las URLs disponibles
-                loadAvailableUrls();
-                
-                // Mostrar el modal
-                const zoneModal = new bootstrap.Modal(document.getElementById('zoneModal'));
-                zoneModal.show();
-            });
-
-            // Función para cargar URLs disponibles en el modal
-            function loadAvailableUrls() {
-                const container = document.getElementById('zone-urls-container');
-                container.innerHTML = '<div class="text-center text-muted py-4">Cargando URLs disponibles...</div>';
-                
-                fetch('/api/urls')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.urls && data.urls.length > 0) {
-                        container.innerHTML = '';
-                        
-                        data.urls.forEach(item => {
-                            const urlCheck = document.createElement('div');
-                            urlCheck.className = 'form-check mb-2';
-                            urlCheck.innerHTML = `
-                                <input class="form-check-input zone-url-checkbox" type="checkbox" value="${item.url}" id="url-${btoa(item.url).replace(/=/g, '')}">
-                                <label class="form-check-label d-flex justify-content-between" for="url-${btoa(item.url).replace(/=/g, '')}">
-                                    <span>${item.url}</span>
-                                    <span class="badge ${getStatusBadgeClass(item.uptime_percentage || 0)}">${item.uptime_percentage || 0}%</span>
-                                </label>
-                            `;
-                            container.appendChild(urlCheck);
-                        });
-                    } else {
-                        container.innerHTML = '<div class="alert alert-warning">No hay URLs monitorizadas disponibles. Añade algunas primero.</div>';
-                    }
-                })
-                .catch(error => {
-                    container.innerHTML = `<div class="alert alert-danger">Error al cargar URLs: ${error.message}</div>`;
-                });
-            }
-
-            // Guardar la zona configurada
-            document.getElementById('save-zone-btn').addEventListener('click', function() {
-                const zoneName = document.getElementById('zone-name').value.trim();
-                const zoneSlug = document.getElementById('zone-slug').value.trim();
-                const zoneDescription = document.getElementById('zone-description').value.trim();
-                const zonePublic = document.getElementById('zone-public').checked;
-                
-                // Validar campos obligatorios
-                if (!zoneName || !zoneSlug) {
-                    alert('Nombre y ruta son campos obligatorios');
-                    return;
-                }
-                
-                // Validar formato de slug (solo letras, números y guiones)
-                if (!/^[a-z0-9-]+$/.test(zoneSlug)) {
-                    alert('La ruta solo puede contener letras minúsculas, números y guiones');
-                    return;
-                }
-                
-                // Obtener URLs seleccionadas
-                const selectedUrls = [];
-                document.querySelectorAll('.zone-url-checkbox:checked').forEach(checkbox => {
-                    selectedUrls.push(checkbox.value);
-                });
-                
-                if (selectedUrls.length === 0) {
-                    alert('Debes seleccionar al menos una URL para incluir en la zona');
-                    return;
-                }
-                
-                // Crear objeto de datos para enviar
-                const zoneData = {
-                    name: zoneName,
-                    slug: zoneSlug,
-                    description: zoneDescription,
-                    urls: selectedUrls,
-                    is_public: zonePublic
-                };
-                
-                // Enviar datos al servidor
-                fetch('/api/zones', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(zoneData)
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Error HTTP: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        // Cerrar modal
-                        bootstrap.Modal.getInstance(document.getElementById('zoneModal')).hide();
-                        
-                        // Limpiar formulario
-                        document.getElementById('zone-form').reset();
-                        
-                        // Mostrar mensaje de éxito
-                        alert(`Zona "${zoneName}" creada correctamente.\n\nPuedes acceder a través de: http://servidor:5000/status/${zoneSlug}`);
-                        
-                        // Actualizar lista de zonas
-                        loadZones();
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error al crear zona:', error);
-                    alert(`Error al crear zona: ${error.message}`);
-                });
-            });
-
-            // Función para cargar zonas existentes
-            function loadZones() {
-                const container = document.getElementById('zones-container');
-                
-                // Verificar si los elementos existen antes de usarlos
-                if (!container) {
-                    console.error('Elemento zones-container no encontrado');
-                    return;
-                }
-                
-                const noZonesMessage = document.getElementById('no-zones-message');
-                
-                fetch('/api/zones')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.zones && data.zones.length > 0) {
-                        if (noZonesMessage) {
-                            noZonesMessage.style.display = 'none';
-                        }
-                        container.innerHTML = '';
-                        
-                        // Crear una fila para cada 3 zonas
-                        let row = null;
-                        
-                        data.zones.forEach((zone, index) => {
-                            if (index % 3 === 0) {
-                                row = document.createElement('div');
-                                row.className = 'row mb-3';
-                                container.appendChild(row);
-                            }
-                            
-                            const zoneCard = document.createElement('div');
-                            zoneCard.className = 'col-md-4';
-                            zoneCard.innerHTML = `
-                                <div class="card h-100">
-                                    <div class="card-body">
-                                        <h5 class="card-title">${zone.name}</h5>
-                                        <p class="card-text small">${zone.description || 'Sin descripción'}</p>
-                                        <p class="text-muted small">URLs: ${zone.urls.length}</p>
-                                    </div>
-                                    <div class="card-footer d-flex justify-content-between">
-                                        <a href="/status/${zone.slug}" class="btn btn-sm btn-primary" target="_blank">Ver</a>
-                                        <button class="btn btn-sm btn-danger delete-zone-btn" data-zone-id="${zone.id}">Eliminar</button>
-                                    </div>
-                                </div>
-                            `;
-                            
-                            row.appendChild(zoneCard);
-                        });
-                    } else {
-                        if (noZonesMessage) {
-                            noZonesMessage.style.display = 'block';
-                        }
-                        container.innerHTML = '';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error al cargar zonas:', error);
-                    container.innerHTML = `<div class="alert alert-danger">Error al cargar zonas: ${error.message}</div>`;
-                });
-            }
-
-            // Eliminar una zona
-            document.addEventListener('click', function(e) {
-                if (e.target && e.target.classList.contains('delete-zone-btn')) {
-                    const zoneId = e.target.getAttribute('data-zone-id');
-                    
-                    if (confirm('¿Estás seguro de que deseas eliminar esta zona?')) {
-                        fetch(`/api/zones/${zoneId}`, {
-                            method: 'DELETE'
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                loadZones();
-                            } else {
-                                alert('Error: ' + data.message);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error al eliminar zona:', error);
-                            alert(`Error al eliminar zona: ${error.message}`);
-                        });
-                    }
-                }
-            });
-
-            // Cargar zonas existentes al iniciar
-            loadZones();
         });
     </script>
 </body>

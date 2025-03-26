@@ -3,11 +3,6 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 from datetime import datetime
 import os
-import sqlite3
-import logging  # Añade esta importación
-
-# Configurar logging
-logger = logging.getLogger(__name__)  # Añade esta línea
 
 Base = declarative_base()
 
@@ -39,53 +34,7 @@ session_factory = sessionmaker(bind=engine)
 Session = scoped_session(session_factory)
 
 def init_db():
-    """Inicializa las tablas de la base de datos"""
-    # Crear tablas de SQLAlchemy
     Base.metadata.create_all(engine)
-    
-    # Además, crear tablas para consultas SQLite directas
-    conn = get_db_connection()
-    
-    # Tabla para resultados
-    conn.execute('''
-    CREATE TABLE IF NOT EXISTS results (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        url TEXT,
-        status_code INTEGER,
-        response_time INTEGER,
-        is_up INTEGER,
-        checked_at TEXT,
-        FOREIGN KEY(url) REFERENCES urls(url)
-    )
-    ''')
-    
-    # Tabla para zonas
-    conn.execute('''
-    CREATE TABLE IF NOT EXISTS zones (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        slug TEXT NOT NULL UNIQUE,
-        description TEXT,
-        urls TEXT NOT NULL,  -- JSON array as string
-        is_public INTEGER DEFAULT 1,
-        created_at INTEGER
-    )
-    ''')
-    
-    # Tabla URLs (para consultas directas)
-    conn.execute('''
-    CREATE TABLE IF NOT EXISTS urls (
-        url TEXT PRIMARY KEY,
-        interval INTEGER DEFAULT 30,
-        group_name TEXT DEFAULT 'default',
-        name TEXT,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    conn.commit()
-    conn.close()
 
 def save_result(url, status_code, response_time, is_up):
     """Guarda el resultado de un chequeo en la base de datos"""
@@ -107,23 +56,6 @@ def save_result(url, status_code, response_time, is_up):
     finally:
         session.close()
 
-def save_result_to_sqlite(url, status_code, response_time, is_up):
-    """Guarda el resultado en la tabla SQLite 'results'"""
-    conn = get_db_connection()
-    try:
-        conn.execute(
-            'INSERT INTO results (url, status_code, response_time, is_up, checked_at) VALUES (?, ?, ?, ?, ?)',
-            (url, status_code, response_time, 1 if is_up else 0, datetime.utcnow().isoformat())
-        )
-        conn.commit()
-        return True
-    except Exception as e:
-        # Cambiar logger.error por print o por la forma correcta de usar logger
-        print(f"Error al guardar resultado en SQLite: {e}")  # Usa print en lugar de logger.error
-        return False
-    finally:
-        conn.close()
-
 def get_results(url=None, limit=100):
     """Obtiene los resultados de monitoreo de la base de datos"""
     session = Session()
@@ -138,16 +70,14 @@ def get_results(url=None, limit=100):
     finally:
         session.close()
 
-def save_url(url, interval, group='default', name=None, description=None):
+def save_url(url, interval):
     """Guarda o actualiza una URL monitoreada en la base de datos"""
     session = Session()
     try:
         existing = session.query(MonitoredURL).filter_by(url=url).first()
         if existing:
             existing.interval = interval
-            # Aquí deberías agregar la lógica para actualizar el grupo, nombre y descripción
         else:
-            # Y aquí para incluirlos al crear
             url_obj = MonitoredURL(url=url, interval=interval)
             session.add(url_obj)
         session.commit()
@@ -184,9 +114,3 @@ def get_all_urls():
         return {url.url: url.interval for url in urls}
     finally:
         session.close()
-
-def get_db_connection():
-    """Obtiene una conexión directa a la base de datos SQLite"""
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row  # Para acceder a las columnas por nombre
-    return conn
