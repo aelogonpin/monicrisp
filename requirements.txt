@@ -1,6 +1,26 @@
-Flask
-SQLAlchemy
-requests
-Flask-SocketIO
-eventlet
-python-dotenv
+# Flask y extensiones relacionadas
+Flask==2.3.3
+Flask-SQLAlchemy==3.1.1
+Flask-SocketIO==5.3.6
+Werkzeug==2.3.7
+
+# Base de datos
+SQLAlchemy==2.0.23
+
+# Networking y monitoreo
+requests==2.31.0
+eventlet==0.33.3
+gevent==23.9.1
+aiohttp==3.9.1
+
+# Utilidades
+python-dotenv==1.0.0
+pytz==2023.3
+pydantic==2.5.2
+
+# Servidor WSGI para producción (opcional)
+gunicorn==21.2.0
+
+# Herramientas de desarrollo y pruebas (opcional)
+pytest==7.4.3
+flake8==6.1.0
